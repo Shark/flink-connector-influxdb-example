@@ -21,15 +21,15 @@ plugins {
 // artifact properties
 group = 'de.hpi.des.influxdb'
 version = '0.1-SNAPSHOT'
-mainClassName = 'de.hpi.des.influxdb.StreamingJob'
-description = """Flink Quickstart Job"""
+mainClassName = 'de.hpi.des.influxdb.PlaneJob'
+description = """Flink Connector InfluxDB Example"""
 
 ext {
     javaVersion = '1.8'
     flinkVersion = '1.12.1'
     scalaBinaryVersion = '2.11'
-    slf4jVersion = '1.7.7'
-    log4jVersion = '1.2.17'
+    slf4jVersion = '1.7.15'
+    log4jVersion = '2.12.1'
 }
 
 
@@ -38,13 +38,6 @@ targetCompatibility = javaVersion
 tasks.withType(JavaCompile) {
 	options.encoding = 'UTF-8'
 }
-
-applicationDefaultJvmArgs = ["-Dlog4j.configuration=log4j.properties"]
-
-// required(flink-influxdb): needed to be commented when upgraded Gradle
-// task wrapper(type: Wrapper) {
-//     gradleVersion = '3.1'
-// }
 
 // declare where to find the dependencies of your project
 repositories {
@@ -59,6 +52,7 @@ repositories {
 // shadowJar yet (see https://github.com/johnrengelman/shadow/issues/159).
 // -> Explicitly define the // libraries we want to be included in the "flinkShadowJar" configuration!
 configurations {
+    compile
     flinkShadowJar // dependencies which go into the shadowJar
 
     // always exclude these (also from transitive dependencies) since they are provided by Flink
@@ -66,6 +60,8 @@ configurations {
     flinkShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
     flinkShadowJar.exclude group: 'org.slf4j'
     flinkShadowJar.exclude group: 'log4j'
+
+    compile.exclude group: 'org.apache.logging.log4j', module: 'log4j-slf4j-impl'
 }
 
 // declare the dependencies for your production and test code
@@ -76,18 +72,18 @@ dependencies {
     // --------------------------------------------------------------
     compile "org.apache.flink:flink-java:1.12.1"
     compile "org.apache.flink:flink-streaming-java_2.11:1.12.1"
+    compile "org.apache.flink:flink-clients_2.11:1.12.1"
 
     // --------------------------------------------------------------
     // Dependencies that should be part of the shadow jar, e.g.
     // connectors. These must be in the flinkShadowJar configuration!
     // --------------------------------------------------------------
 
-    // required(flink-influxdb): compile + flinkShadowJar required (otherwise the )
-    compile 'com.github.1p4pk:bahir-flink:7a7c6cc237'
-    flinkShadowJar 'com.github.1p4pk:bahir-flink:7a7c6cc237'
-
-    compile "log4j:log4j:1.2.17"
-    compile "org.slf4j:slf4j-log4j12:1.7.7"
+    compile "org.apache.flink:flink-table-planner-blink_2.11:1.12.1"
+    compile 'org.apache.flink:flink-table-api-java-bridge_2.11:1.12.1'
+    compile 'com.github.1p4pk:bahir-flink:521df6c23f0a2a788d0853a260d31caaca33f31b'
+    flinkShadowJar "org.apache.flink:flink-table-planner-blink_2.11:1.12.1"
+    flinkShadowJar 'com.github.1p4pk:bahir-flink:521df6c23f0a2a788d0853a260d31caaca33f31b'
 
 
     // Add test dependencies here.
@@ -116,10 +112,6 @@ jar {
 
 shadowJar {
     configurations = [project.configurations.flinkShadowJar]
-}
-
-// required(flink-influxdb): ZIP would get too big
-shadowJar {
     zip64 true
     minimize()
 }
