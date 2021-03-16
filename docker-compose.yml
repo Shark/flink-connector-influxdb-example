@@ -1,0 +1,13 @@
+version: '3'
+services:
+  flinkapp:
+    build:
+      context: .devcontainer
+      args:
+        VARIANT: '8'
+        INSTALL_GRADLE: 'true'
+    volumes:
+      - .:/work
+    working_dir: /work
+    environment:
+      PATH: /usr/local/share/nvm/current/bin:/usr/local/openjdk-15/bin:$PATH:/usr/local/sdkman/java/current/bin:/usr/local/sdkman/maven/current/bin:/usr/local/sdkman/gradle/current/bin
