@@ -5,13 +5,21 @@ on Kubernetes. It is an end-to-end test which leverages both the InfluxDB v2.0 s
 
 ![Flow Chart for the Example](media/flow-chart.png)
 
+Look at…
+
+* [`PlaneJob.java`](src/main/java/de/hpi/des/influxdb/PlaneJob.java) to learn how to use the Source and Sink connectors with the [DataStream](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/datastream_api.html) and [Table/SQL](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/table/) APIs
+
+* [`telegraf.conf`](telegraf/telegraf.conf) to find out how to configure Telegraf to write to the Flink InfluxDB source
+
+* the Kubernetes service
+
 ## Requirements
 
 * 3+ CPU cores
 * 8GB RAM
 * Recent Linux OS, setup was tested on Ubuntu 20.04
 
-## Usage
+## 1. Basic Setup
 
 1. Install the required tools
 
@@ -19,14 +27,6 @@ on Kubernetes. It is an end-to-end test which leverages both the InfluxDB v2.0 s
   * [k3d](https://github.com/rancher/k3d#get)
   * [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)
   * [Helm](https://helm.sh/docs/intro/install/#from-apt-debianubuntu)
-
-1. Build Flink App
-
-   ```
-   docker-compose build flinkapp
-   docker-compose run --rm flinkapp bash
-   gradle shadowJar
-   ```
 
 1. Create k3d cluster
 
@@ -77,26 +77,23 @@ on Kubernetes. It is an end-to-end test which leverages both the InfluxDB v2.0 s
       containers:
         - name: flink
           image: flink:1.12.1-scala_2.12-java8
-          args: ["bin/kubernetes-session.sh", "-Dkubernetes.cluster-id=osdp", "-Dexecution.attached=true", "-Dresourcemanager.taskmanager-timeout=3600000", "-Dtaskmanager.memory.process.size=1024MB", "-Djobmanager.memory.process.size=1024MB", "-Dkubernetes.jobmanager.service-account=admin-user", "-Dkubernetes.rest-service.exposed.type=ClusterIP" ]
-
-    ---
-    apiVersion: v1
-    kind: Service
-    metadata:
-      name: influxdb-source
-    spec:
-      selector:
-        app: osdp
-        component: taskmanager
-      ports:
-      - port: 8000
-    EOF
+          args: ["bin/kubernetes-session.sh", "-Dkubernetes.cluster-id=osdp", "-Dexecution.attached=true", "-Dresourcemanager.taskmanager-timeout=3600000", "-Dtaskmanager.memory.process.size=1024MB", "-Djobmanager.memory.process.size=1024MB", "-Dkubernetes.jobmanager.service-account=admin-user", "-Dkubernetes.rest-service.exposed.type=ClusterIP"]
     ```
 
     Troubleshooting:
 
     * Run `kubectl get pod`. Verify there is a running `flink-cluster-manager` and `osdp-SOMETHING-SOMETHING` pod.
     * If there is no `osdp-SOMETHING-SOMETHING` pod, look at the `flink-cluster-manager` logs: `kubectl logs pod/flink-cluster-manager`
+
+## 2. Flink App Deployment
+
+1. Build Flink App
+
+   ```
+   docker-compose build flinkapp
+   docker-compose run --rm flinkapp bash
+   gradle shadowJar
+   ```
 
 1. Copy Flink App JAR and submit it to the Flink cluster
 
@@ -112,6 +109,28 @@ on Kubernetes. It is an end-to-end test which leverages both the InfluxDB v2.0 s
     * Flink should spawn a new pod (`kubectl get pod`) with the name `osdp-taskmanager-1-1`. Verify the pod is running.
       If it isn't, this may be because of resource constraints (such as not having enough CPU resources). You can verify
       with `kubectl describe pod osdp-taskmanager-1-1`.
+
+## 3. Wire it all together
+
+1. Create a [Kubernetes Service](https://kubernetes.io/docs/concepts/services-networking/service/) to allow Telegraf to discover the Flink InfluxDB source:
+
+   ```
+   kubectl apply -f- <<'EOF'
+   ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: influxdb-source
+    spec:
+      selector:
+        app: osdp
+        component: taskmanager
+      ports:
+      - port: 8000
+   EOF
+   ```
+
+   This will create a service with a ClusterIP which binds to all Task Manager pods on port 8000. You can then use the source simply by pointing your client at `http://influxdb-source:8000` as seen in [`telegraf.conf`](telegraf/telegraf.conf).
 
 1. Deploy Telegraf
 
